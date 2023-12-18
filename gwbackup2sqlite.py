@@ -1,5 +1,11 @@
 #
+# gwbackupy2sqlite.py
+#
 # convert a gwbackupy database to sqlite for queries
+#
+# Copyright © 2023 by Udi Finkelstein
+#
+# Released under the BSD 3-clause license. See LICENSE file.
 #
 import os
 import sys
