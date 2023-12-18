@@ -17,34 +17,6 @@ from datetime import datetime
 labels = {}
 schema_version = (1,0,0)
 
-class DummyDB:
-    def __init__(self):
-        self.tables={}
-
-    def __getitem__(self, key):
-        return(self.tables[key])
-
-    def __setitem__(self, key, value):
-        self.tables[key]=value
-
-    def table_names(self):
-        return list(self.tables)
-    
-    def query(self, q):
-        print("query:", q)
-        yield from()
-
-class DummyTable:
-    def __init__(self, name):
-        self.last_rowid = 0
-        self.name = name
-
-    def insert(self, d):
-        print(f"{self.name}.insert:", d)
-
-    def upsert(self, pk, d):
-        print(f"{self.name}.upsert: pk={pk} d={d}")
-
 class gm_json:
     def __init__(self, db):
         global labels
@@ -257,7 +229,6 @@ def test_email_decode(dir):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Export gwbackupy data directory into sqlite")
     #parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
-    parser.add_argument("--dry", default=False, help="Run in dry mode", action="store_true")
     parser.add_argument("--test-subject", default=False, help="Only decode subject line to test it", action="store_true")
     parser.add_argument("--db", type=str, help="sqlite DB name", default=None)
     parser.add_argument("-f", "--sql-file", type=str, help="extra SQL command file to run", default=None)
@@ -270,14 +241,7 @@ if __name__ == '__main__':
     if args.test_subject:
         test_email_decode(args.dir)
         sys.exit(0)
-    if args.dry:
-        db = DummyDB()
-        db["emails"]=DummyTable("emails")
-        db["labels"]=DummyTable("labels")
-        db["email_label"]=DummyTable("elail_labels")
-        db["attachments"]=DummyTable("attachments")
-    else:
-        db = open_database(args.db)
+    db = open_database(args.db)
     if args.sql_file:
         with open(pathlib.Path(__file__).parent.resolve() / args.sql_file) as f:
             db.executescript(f.read())
