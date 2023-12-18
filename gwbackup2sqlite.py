@@ -221,6 +221,9 @@ def get_file_list(dir, db=None):
             data = json.load(json_file)
             j.handle_json(id, data)
 
+#
+# THis is debugging code to test just the subject line decoding without all the overheard
+#
 def test_email_decode(dir):
     idx = 0
     path = pathlib.Path(dir)
