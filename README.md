@@ -12,6 +12,30 @@ This metadata is stored inside an [SQLite](https://www.sqlite.org/) database. On
 
 Requirements
 ------------
-* Python3
+* Python3 (I'm using 3.11 at the moment, not sure which version is the minimum required)
 * [gwbackupy](https://github.com/smartondev/gwbackupy)
 * [datasette](https://datasette.io/)
+
+Usage:
+------
+1. Prepare a gmail backup using [gwbackupy](https://github.com/smartondev/gwbackupy) by following its instructions. Let's say the backup destination is a directory named <data>
+2. Run the following command: `gwbackupy2sqlite --dir <data>/ --db your_db_name.sqlite -f sample_email_addr_table.sql`
+3. Run `datasette your_db_name.sqlite` and open `http://127.0.0.1:8001/` On your local browser.
+
+Why is this useful?
+-------------------
+By analyzing the backup through datasette it is possible to do complex SQL queries over your email database metadata, for example:
+1. Sort your emails in groups by the sender, sorting groups by their collective size from the largest to smallest.
+
+TODO
+----
+This is a quick & dirty project. It is not very fast, but by selectively scanning only new email folders the delay is not long.
+(gwbackupy stores emails in a separate folder for every day, all inside a year folder). It is also my first projetg using SQL.
+1. Parallelize it as much as possible. How to do this in python is yet to be seen.
+2. Add more features for directly reading the emails from datasette.
+3. Rewrite it in a faster language such as Go??
+
+License
+-------
+The license chosen for this program is the same BSD 3-Clause license used by gwbackupy, for this reason exactly.
+
