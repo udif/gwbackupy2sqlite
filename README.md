@@ -18,8 +18,9 @@ Requirements
 
 Usage:
 ------
-1. Prepare a gmail backup using [gwbackupy](https://github.com/smartondev/gwbackupy) by following its instructions. Let's say the backup destination is a directory named <data>
-2. Run the following command: `gwbackupy2sqlite --dir <data>/ --db your_db_name.sqlite -f sample_email_addr_table.sql`
+1. Prepare a gmail backup using [gwbackupy](https://github.com/smartondev/gwbackupy) by following its instructions. Let's say the backup destination is in the default directory, named 'data'
+2. Prepare your own copy of `sample_email_addr_table.sql` and add your real email addresses and/or personal domains.
+3. Run the following command: `gwbackupy2sqlite --dir data --db your_db_name.sqlite -f sample_email_addr_table.sql`
 3. Run `datasette your_db_name.sqlite` and open `http://127.0.0.1:8001/` On your local browser.
 
 Why is this useful?
