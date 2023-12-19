@@ -61,30 +61,37 @@ def encoded_words_to_text(encoded_words):
     except:
         # hope we get enough to proceed
         print (f"exception: dh:{dh}")
-    return ''.join([ str(t[0], detect_unknown_encoding(t[0])) if t[1] == 'unknown-8bit'
-                        else str(t[0], 'iso-8859-8') if t[1] == 'iso-8859-8-i'
-                        else str(t[0], t[1]) if t[1] is not None
-                        else t[0] if isinstance(t[0], str)
-                        else str(t[0], 'utf-8')
-                        for t in dh ])
+    return ''.join([ detect_unknown_encoding(*t) for t in dh ])
     #except UnicodeDecodeError as err:
     #    print (f"exception: dh:{dh} encoded_words:{encoded_words} at {err.start} probably {err.encoding}")
     #    sys.exit(1)
 
 # Apply some heuristics for old messages
-def detect_unknown_encoding(bytes):
+def detect_unknown_encoding(bytes, enc):
+    #print(bytes, enc)
+    if isinstance(bytes, str):
+        return bytes
+    if (enc == 'iso-8859-8-i'):
+        enc = enc[:-2] # iso-8859-8
+    elif not enc or enc.startswith("unknown"):
+        enc = 'utf-8'
     err_start = 0
-    enc = None
-    for e in ('iso-8859-8', 'utf-8', 'big5', 'gb18030', 'windows-1255'):
+    err_enc = None
+    done = False
+    # try preferred encoding first, but then try others
+    for e in (enc, 'utf-8', 'iso-8859-8', 'big5', 'gb18030', 'windows-1255'):
+        if enc == e and done:
+            continue
+        done = True
         try:
             bytes.decode(e)
-            return e
+            return str(bytes, e)
         except UnicodeDecodeError as err:
             if err.start > err_start:
                 err_start = err.start
-                enc = e
+                err_enc = e
             continue
-    return enc
+    return str(bytes[:err_start], err_enc) # decode just enough not to fail
     #raise Exception(f"Unknown character encoding for {bytes}, probably enc {enc}, failed at pos {err_start}")
 
 
@@ -230,14 +237,14 @@ def test_email_decode(dir):
         if idx % 100 == 0:
             print(f"Index:{idx}",end='\r')
         ns = str(n)
+        if not ns.endswith(".gz"):
+            continue
         if not os.path.isfile(n):
             continue
         id = os.path.basename(n).split('.')[0]
         try:
             idd = int(id, 16)
         except:
-            continue
-        if not ns.endswith(".gz"):
             continue
         with gzip.open(ns, 'rb') as f:
             msg = email.message_from_bytes(f.read())
