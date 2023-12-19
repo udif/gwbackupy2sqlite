@@ -58,15 +58,35 @@ class gm_json:
 def encoded_words_to_text(encoded_words):
     try:
         dh = decode_header(encoded_words)
-        return ''.join([ str(t[0], 'utf-8') if t[1] == 'unknown-8bit'
-                         else str(t[0], 'iso-8859-8') if t[1] == 'iso-8859-8-i'
-                         else str(t[0], t[1]) if t[1] is not None
-                         else t[0] if isinstance(t[0], str)
-                         else str(t[0], 'utf-8')
-                         for t in dh ])
     except:
-        print (f"exception: dh:{dh} encoded_words:{encoded_words}")
-        sys.exit(1)
+        # hope we get enough to proceed
+        print (f"exception: dh:{dh}")
+    return ''.join([ str(t[0], detect_unknown_encoding(t[0])) if t[1] == 'unknown-8bit'
+                        else str(t[0], 'iso-8859-8') if t[1] == 'iso-8859-8-i'
+                        else str(t[0], t[1]) if t[1] is not None
+                        else t[0] if isinstance(t[0], str)
+                        else str(t[0], 'utf-8')
+                        for t in dh ])
+    #except UnicodeDecodeError as err:
+    #    print (f"exception: dh:{dh} encoded_words:{encoded_words} at {err.start} probably {err.encoding}")
+    #    sys.exit(1)
+
+# Apply some heuristics for old messages
+def detect_unknown_encoding(bytes):
+    err_start = 0
+    enc = None
+    for e in ('iso-8859-8', 'utf-8', 'big5', 'gb18030', 'windows-1255'):
+        try:
+            bytes.decode(e)
+            return e
+        except UnicodeDecodeError as err:
+            if err.start > err_start:
+                err_start = err.start
+                enc = e
+            continue
+    return enc
+    #raise Exception(f"Unknown character encoding for {bytes}, probably enc {enc}, failed at pos {err_start}")
+
 
 def insert_and_return_rowid(db, column, value):
     db.insert({column : value}, ignore=True)
