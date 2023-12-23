@@ -46,7 +46,7 @@ class gm_json:
                             labels[l] = len(labels)
             elif key == 'id':
                 if id != int(data[key], 16):
-                    print(f"Illegal id! filename_id={hex(id)} json_id={data[key]}")
+                    print(f"Illegal id! filename_id={hex(id)[2:]} json_id={data[key]}")
                     sys.exit(1)
                 self.db["emails"].upsert({key: id}, pk="id")
             elif key == 'threadId':
@@ -131,18 +131,22 @@ def get_attachment_list_and_size(db, id, email_string):
     for i in msg.items():
         j = i[0].lower()
         if j in fields:
-            fields[j].add(i[1])
+            if isinstance(i[1], str):
+                fields[j].add(i[1])
+            else:
+                fields[j].add(encoded_words_to_text(i[1]))
         elif j == "subject":
             subject_e = encoded_words_to_text(i[1])
         elif j == "date":
-            dt = email.utils.parsedate_to_datetime(i[1])
-            date_e = round(datetime.timestamp(dt))
+            try:
+                dt = email.utils.parsedate_to_datetime(i[1])
+                date_e = round(datetime.timestamp(dt))
+            except:
+                date_e = 0
     if len(fs) > 1:
-        print(f"More than 1 Sender: {fs}")
-        sys.exit(1)
+        print(f"Warning! More than 1 Sender: {fs}, id:{hex(id)[2:]}")
     if len(fs) == 0 and len(fields["from"]) > 1:
-        print(f"More than 1 From: {ff} and no Sender:")
-        sys.exit(1)
+        print(f"Warning! More than 1 From: {ff} and no Sender, id:{hex(id)[2:]}")
     emails.upsert({"subject_e": subject_e, "date_e": date_e, "id":id}, pk="id")
     fr = email.utils.getaddresses(list(ff))
     to = email.utils.getaddresses(list(ft))
@@ -200,13 +204,15 @@ def update_db(db, current_schema_version):
     pass
     
 def get_file_list(dir, db=None):
+    start_dateTime = datetime.now()
     path = pathlib.Path(dir)
     j = gm_json(db)
     idx = 0
     for n in path.rglob("*"):
         idx = idx + 1
         if idx % 100 == 0:
-            print(f"Index:{idx}", end='\r')
+            duration = datetime.now() - start_dateTime
+            print(f"Index:{idx} Seconds:{duration.total_seconds()} Rate:{idx/duration.total_seconds()} files/sec.", end='\r')
         ns = str(n)
         if not os.path.isfile(n):
             continue
