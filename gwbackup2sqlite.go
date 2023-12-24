@@ -5,7 +5,9 @@ import (
 	"compress/gzip"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"mime"
 	"net/mail"
 	"os"
 	"path/filepath"
@@ -13,8 +15,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/udif/gwbackupy2sqlite/mymime"
+	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 var wg sync.WaitGroup
@@ -28,9 +32,29 @@ func Max(x, y int) int {
 	return x
 }
 
+func CharsetReader(charset string, input io.Reader) (io.Reader, error) {
+	var dec *encoding.Decoder
+	switch strings.ToLower(charset) {
+	case "iso-8859-8", "iso-8859-8-i":
+		// Replace with the actual ISO-8859-8 decoder
+		dec = charmap.ISO8859_8.NewDecoder()
+	case "windows-1255":
+		// Replace with the actual Windows-1255 decoder
+		dec = charmap.Windows1255.NewDecoder()
+	case "gb18030", "gb2312":
+		dec = simplifiedchinese.GB18030.NewDecoder()
+	case "koi8-r":
+		dec = charmap.KOI8R.NewDecoder()
+	default:
+		return nil, fmt.Errorf("unknown charset: %s", charset)
+	}
+	return transform.NewReader(input, dec), nil
+}
+
 // Convert raw strings to UTF-8
 // check for specific encoding using heuristics
-// add here moe as needed
+// add here more as needed
+// At the moment, we assume it is ISO-8859-8 or ISO-8859-8-I
 // https://en.wikipedia.org/wiki/ISO/IEC_8859-8
 func convertRawToUTF8(s string) string {
 	for i := 0; i < len(s); i++ {
@@ -48,24 +72,9 @@ func convertRawToUTF8(s string) string {
 	return s
 }
 
-/*
-	func convertWindows1255ToUTF8(str string) (string, error) {
-		// Create a new reader with Windows-1255 encoding
-		reader := strings.NewReader(str)
-		decoder := charmap.Windows1255.NewDecoder()
-		reader = decoder.Reader(reader)
-
-		// Read from the reader and convert to UTF-8
-		data, err := ioutil.ReadAll(reader)
-		if err != nil {
-			return "", err
-		}
-
-		return string(data), nil
-	}
-*/
 func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
-	var dec = new(mymime.WordDecoder)
+	var dec = new(mime.WordDecoder)
+	dec.CharsetReader = CharsetReader
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -95,6 +104,11 @@ func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
 
 	encodedSubject := msg.Header.Get("Subject")
 	decodedSubject, err := dec.DecodeHeader(encodedSubject)
+	if decodedSubject == encodedSubject {
+		// If both strings equal, it means no new buffer was allocated,
+		// and no quote-printable string ('=?') was found in encodedSubject
+		decodedSubject = convertRawToUTF8(encodedSubject)
+	}
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
