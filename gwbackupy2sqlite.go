@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"compress/gzip"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +26,13 @@ import (
 var wg sync.WaitGroup
 var wg2 sync.WaitGroup
 
+var fileMap = make(map[int64]string)
+var fileMu sync.Mutex
+
+//var fileMap = &SafeMap{
+//	m: make(map[int64]string),
+//}
+
 // There is no built-in Max() function for integers
 func Max(x, y int) int {
 	if x < y {
@@ -32,6 +40,24 @@ func Max(x, y int) int {
 	}
 	return x
 }
+
+//type SafeMap struct {
+//	mu sync.Mutex
+//	m  map[int64]string
+//}
+//
+//func (sm *SafeMap) safeSet(key int64, value string) {
+//	sm.mu.Lock()
+//	sm.m[key] = value
+//	sm.mu.Unlock()
+//}
+//
+//func (sm *SafeMap) safeGet(key int64) (string, bool) {
+//	sm.mu.Lock()
+//	defer sm.mu.Unlock()
+//	val, ok := sm.m[key]
+//	return val, ok
+//}
 
 func CharsetReader(charset string, input io.Reader) (io.Reader, error) {
 	var dec *encoding.Decoder
@@ -73,25 +99,75 @@ func convertRawToUTF8(s string) string {
 	return s
 }
 
-func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
+func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
+	var gzName, jsonName string
 	dir, file := filepath.Split(filename)
 	id, err := strconv.ParseInt(file[0:16], 16, 64)
 	if err != nil {
 		panic(err)
 	}
-	dir2, day := filepath.Split(filepath.Clean(dir))
-	_, year := filepath.Split(filepath.Clean(dir2))
+	fmt.Println(id)
+	ext := filepath.Ext(filename)
+	fileMu.Lock() // release lock ASAP
+	val, ok := fileMap[id]
+	if !ok {
+		// We got json, but if no map hit, we only got 1 file yet
+		fileMap[id] = filename // save 1st filename
+		fileMu.Unlock()        // release lock ASAP
+		return                 // return, wait for next file
+	} else {
+		fileMu.Unlock() // got both file, release lock ASAP
+	}
+	// we got both filenames in "filename" and "val", now determine which is which
+	ext2 := filepath.Ext(val)
+	if ext == ".json" {
+		jsonName = filename
+		gzName = val
+		if ext2 != ".gz" {
+			log.Fatal("ext == json but ext2 != gz")
+		}
+	} else {
+		jsonName = val
+		gzName = filename
+		if ext != ".gz" {
+			log.Fatal("ext != gz and ext != json", ext)
+		}
+		if ext2 != ".json" {
+			log.Fatal("ext == gz but ext2 != json")
+		}
+	}
+	//fmt.Println("jsonName:", jsonName, "gzName:", gzName)
+	dir2, _ := filepath.Split(filename)
+	if dir != dir2 {
+		log.Fatal("dir != dir2")
+	}
+	// optional sanity checks:
+	// both filename has the same id
+	// both filenames resides in the same directory
+	// we reall have json and gz suffixes
+	dir3, day := filepath.Split(filepath.Clean(dir))
+	_, year := filepath.Split(filepath.Clean(dir3))
 	fmt.Println("gzip: year:", year, "day:", day, "id:", id)
 
 	var dec = new(mime.WordDecoder)
 	dec.CharsetReader = CharsetReader
-
-	fh, err := os.Open(filename)
+	// Handle json file (metadata)
+	byteValue, err := os.ReadFile(jsonName)
 	if err != nil {
 		log.Fatal(err)
 	}
+	var result map[string]interface{}
+	json.Unmarshal([]byte(byteValue), &result)
+	fmt.Println(result)
 
-	gz, err := gzip.NewReader(fh)
+	// Handle gz file (email payload)
+	fhg, err := os.Open(gzName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fhg.Close()
+
+	gz, err := gzip.NewReader(fhg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -114,8 +190,8 @@ func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
 
 	encodedSubject := msg.Header.Get("Subject")
 	decodedSubject, err := dec.DecodeHeader(encodedSubject)
-	if decodedSubject == encodedSubject {
-		// If both strings equal, it means no new buffer was allocated,
+	if &decodedSubject == &encodedSubject {
+		// If both vars point to the same strings, it means no new buffer was allocated,
 		// and no quote-printable string ('=?') was found in encodedSubject
 		decodedSubject = convertRawToUTF8(encodedSubject)
 	}
@@ -127,25 +203,11 @@ func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
 	resultCh <- modifiedSubject
 }
 
-func handleJson(goroutineNum int, filename string, resultCh chan<- string) {
-	dir, file := filepath.Split(filename)
-	id, err := strconv.ParseInt(file[0:16], 16, 64)
-	if err != nil {
-		panic(err)
-	}
-	dir2, day := filepath.Split(filepath.Clean(dir))
-	_, year := filepath.Split(filepath.Clean(dir2))
-	fmt.Println("JSON: year:", year, "day:", day, "id:", id)
-}
 func workerFunc(goroutineNum int, fileCh <-chan string, resultCh chan<- string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for filename := range fileCh {
-		if strings.HasSuffix(filename, ".gz") {
-			handleGzip(goroutineNum, filename, resultCh)
-		} else if strings.HasSuffix(filename, ".json") {
-			handleJson(goroutineNum, filename, resultCh)
-		}
+		handleMail(goroutineNum, filename, resultCh)
 	}
 }
 
