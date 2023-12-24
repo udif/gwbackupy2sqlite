@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/mail"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/udif/gwbackupy2sqlite/mymime"
 	"golang.org/x/text/encoding/charmap"
 )
 
@@ -48,21 +48,22 @@ func convertRawToUTF8(s string) string {
 	return s
 }
 
-func convertWindows1255ToUTF8(str string) (string, error) {
-	// Create a new reader with Windows-1255 encoding
-	reader := strings.NewReader(str)
-	decoder := charmap.Windows1255.NewDecoder()
-	reader = decoder.Reader(reader)
+/*
+	func convertWindows1255ToUTF8(str string) (string, error) {
+		// Create a new reader with Windows-1255 encoding
+		reader := strings.NewReader(str)
+		decoder := charmap.Windows1255.NewDecoder()
+		reader = decoder.Reader(reader)
 
-	// Read from the reader and convert to UTF-8
-	data, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return "", err
+		// Read from the reader and convert to UTF-8
+		data, err := ioutil.ReadAll(reader)
+		if err != nil {
+			return "", err
+		}
+
+		return string(data), nil
 	}
-
-	return string(data), nil
-}
-
+*/
 func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
 	var dec = new(mymime.WordDecoder)
 
@@ -93,7 +94,7 @@ func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
 	}
 
 	encodedSubject := msg.Header.Get("Subject")
-	decodedSubject := dec.DecodeHeader(encodedSubject, dec)
+	decodedSubject, err := dec.DecodeHeader(encodedSubject)
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
