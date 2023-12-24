@@ -1,3 +1,5 @@
+github.com/mattn/go-sqlite3 v1.14.19 h1:fhGleo2h1p8tVChob4I9HpmVFIAkKGpiukdrgQbWfGI=
+github.com/mattn/go-sqlite3 v1.14.19/go.mod h1:2eHXhiwb8IkHr+BDWZGa96P6+rkvnG63S2DGjv9HUNg=
 github.com/udif/gwbackupy2sqlite/mymime v0.0.0-20231224002703-34072cb25662 h1:v88FGapFvzSsu+7n86O9+wcYuJJLliGg51jJRM4U0AQ=
 github.com/udif/gwbackupy2sqlite/mymime v0.0.0-20231224002703-34072cb25662/go.mod h1:SUUMcNdz5zb4QbQv2MQw9s503/JTbLxUC3fo9dRliyI=
 golang.org/x/text v0.14.0 h1:ScX5w1eTa3QqT8oi6+ziP7dTV1S2+ALU0bI+0zXKWiQ=
