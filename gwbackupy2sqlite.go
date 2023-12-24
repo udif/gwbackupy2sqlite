@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -73,15 +74,24 @@ func convertRawToUTF8(s string) string {
 }
 
 func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
+	dir, file := filepath.Split(filename)
+	id, err := strconv.ParseInt(file[0:16], 16, 64)
+	if err != nil {
+		panic(err)
+	}
+	dir2, day := filepath.Split(filepath.Clean(dir))
+	_, year := filepath.Split(filepath.Clean(dir2))
+	fmt.Println("gzip: year:", year, "day:", day, "id:", id)
+
 	var dec = new(mime.WordDecoder)
 	dec.CharsetReader = CharsetReader
 
-	file, err := os.Open(filename)
+	fh, err := os.Open(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	gz, err := gzip.NewReader(file)
+	gz, err := gzip.NewReader(fh)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -118,7 +128,14 @@ func handleGzip(goroutineNum int, filename string, resultCh chan<- string) {
 }
 
 func handleJson(goroutineNum int, filename string, resultCh chan<- string) {
-
+	dir, file := filepath.Split(filename)
+	id, err := strconv.ParseInt(file[0:16], 16, 64)
+	if err != nil {
+		panic(err)
+	}
+	dir2, day := filepath.Split(filepath.Clean(dir))
+	_, year := filepath.Split(filepath.Clean(dir2))
+	fmt.Println("JSON: year:", year, "day:", day, "id:", id)
 }
 func workerFunc(goroutineNum int, fileCh <-chan string, resultCh chan<- string, wg *sync.WaitGroup) {
 	defer wg.Done()
