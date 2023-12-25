@@ -103,7 +103,7 @@ CREATE TABLE if not exists my_email_addresses (
   addr TEXT UNIQUE
 );
 
-create view full_mails as select
+create view if not exists full_mails as select
   e.id AS email_id,
   fn.name_e as fname,
   fa.addr_e as faddr,
@@ -130,7 +130,7 @@ where
   and f.email_address = fa.id;
 
 -- A specific view to filter only mails intended to me
-create view my_mails as SELECT 
+create view if not exists my_mails as SELECT 
     e.id AS email_id,
     e.subject_e AS email_subject,
     fn.name_e || ' <' || fa.addr_e || '>' AS from_n_a,

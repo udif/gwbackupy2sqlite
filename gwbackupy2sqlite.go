@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"compress/gzip"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 	"strings"
 	"sync"
 
+	//_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -219,6 +222,97 @@ func sqlite_update(resultCh <-chan string) {
 	}
 }
 
+type SemVer struct {
+	major int
+	minor int
+	patch int
+}
+
+func (v *SemVer) LessThan(v2 *SemVer) (res bool) {
+	if v.major < v2.major {
+		return true
+	} else if v.major > v2.major {
+		return false
+	} else if v.minor < v2.minor {
+		return true
+	} else if v.minor > v2.minor {
+		return false
+	} else if v.patch < v2.patch {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (v *SemVer) Equal(v2 *SemVer) (res bool) {
+	if v.major == v2.major &&
+		v.minor == v2.minor &&
+		v.patch == v2.patch {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (v *SemVer) GreaterThan(v2 *SemVer) (res bool) {
+	if v.major > v2.major {
+		return true
+	} else if v.major < v2.major {
+		return false
+	} else if v.minor > v2.minor {
+		return true
+	} else if v.minor < v2.minor {
+		return false
+	} else if v.patch > v2.patch {
+		return true
+	} else {
+		return false
+	}
+}
+
+// To be filled as the DB progresses
+func upgradeDb(db *sql.DB, dbv *SemVer) {
+	//
+}
+
+func openDatabase(db_name string) (db *sql.DB, err error) {
+	db, err = sql.Open("sqlite", db_name)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	var table string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version';").Scan(&table)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("No DB found, creating a new one.")
+			// read SQL commands from file
+			sqlCommands, err := os.ReadFile("tables.sql")
+			if err != nil {
+				log.Fatal(err)
+			}
+			// execute SQL commands
+			_, err = db.Exec(string(sqlCommands))
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			log.Fatal(err)
+		}
+	} else {
+		cv := SemVer{major: 1, minor: 0, patch: 0}
+		var dbv SemVer
+		err = db.QueryRow("SELECT * FROM schema_version;").Scan(&dbv.major, &dbv.minor, &dbv.patch)
+		fmt.Println("gabackupy2sqlite DB Version:", dbv.major, dbv.minor, dbv.patch)
+		if cv.GreaterThan(&dbv) {
+			upgradeDb(db, &dbv)
+		}
+	}
+	return db, err
+}
+
 func main() {
 	dir := flag.String("dir", "", "directory path")
 	db := flag.String("db", "", "database name")
@@ -244,6 +338,8 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+	openDatabase(*db)
+	os.Exit(0)
 
 	fileCh := make(chan string)
 	resultCh := make(chan string)
