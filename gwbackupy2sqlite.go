@@ -159,9 +159,9 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var result map[string]interface{}
-	json.Unmarshal([]byte(byteValue), &result)
-	fmt.Println(result)
+	var email Emails
+	json.Unmarshal([]byte(byteValue), &email)
+	fmt.Println(email)
 
 	// Handle gz file (email payload)
 	fhg, err := os.Open(gzName)
@@ -222,54 +222,6 @@ func sqlite_update(resultCh <-chan string) {
 	}
 }
 
-type SemVer struct {
-	major int
-	minor int
-	patch int
-}
-
-func (v *SemVer) LessThan(v2 *SemVer) (res bool) {
-	if v.major < v2.major {
-		return true
-	} else if v.major > v2.major {
-		return false
-	} else if v.minor < v2.minor {
-		return true
-	} else if v.minor > v2.minor {
-		return false
-	} else if v.patch < v2.patch {
-		return true
-	} else {
-		return false
-	}
-}
-
-func (v *SemVer) Equal(v2 *SemVer) (res bool) {
-	if v.major == v2.major &&
-		v.minor == v2.minor &&
-		v.patch == v2.patch {
-		return true
-	} else {
-		return false
-	}
-}
-
-func (v *SemVer) GreaterThan(v2 *SemVer) (res bool) {
-	if v.major > v2.major {
-		return true
-	} else if v.major < v2.major {
-		return false
-	} else if v.minor > v2.minor {
-		return true
-	} else if v.minor < v2.minor {
-		return false
-	} else if v.patch > v2.patch {
-		return true
-	} else {
-		return false
-	}
-}
-
 // To be filled as the DB progresses
 func upgradeDb(db *sql.DB, dbv *SemVer) {
 	//
@@ -280,7 +232,6 @@ func openDatabase(db_name string) (db *sql.DB, err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
 
 	var table string
 	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version';").Scan(&table)
@@ -315,10 +266,10 @@ func openDatabase(db_name string) (db *sql.DB, err error) {
 
 func main() {
 	dir := flag.String("dir", "", "directory path")
-	db := flag.String("db", "", "database name")
+	db_name := flag.String("db", "", "database name")
 	numProcs := flag.Int("procs", Max(1, runtime.NumCPU()-2), "number of parallel processes")
 	flag.Parse()
-	if *dir == "" || *db == "" {
+	if *dir == "" || *db_name == "" {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -338,8 +289,9 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	openDatabase(*db)
-	os.Exit(0)
+	db, err := openDatabase(*db_name)
+	defer db.Close()
+	//os.Exit(0)
 
 	fileCh := make(chan string)
 	resultCh := make(chan string)
