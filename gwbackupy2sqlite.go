@@ -154,7 +154,10 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 
 	var dec = new(mime.WordDecoder)
 	dec.CharsetReader = CharsetReader
-	// Handle json file (metadata)
+
+	// ***************************
+	// Handle JSON file (metadata)
+	// ***************************
 	byteValue, err := os.ReadFile(jsonName)
 	if err != nil {
 		log.Fatal(err)
@@ -162,6 +165,9 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	var email Emails
 	json.Unmarshal([]byte(byteValue), &email)
 	fmt.Println(email)
+	// ********************
+	// End of JSON handling
+	// ********************
 
 	// Handle gz file (email payload)
 	fhg, err := os.Open(gzName)
