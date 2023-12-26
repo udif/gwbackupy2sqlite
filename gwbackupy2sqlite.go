@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"compress/gzip"
 	"database/sql"
 	"encoding/json"
@@ -182,17 +181,18 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	}
 	defer gz.Close()
 
-	scanner := bufio.NewScanner(gz)
-	var headers string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			break
-		}
-		headers += line + "\r\n"
-	}
+	//scanner := bufio.NewScanner(gz)
+	//var headers string
+	//for scanner.Scan() {
+	//	line := scanner.Text()
+	//	if line == "" {
+	//		break
+	//	}
+	//	headers += line + "\r\n"
+	//}
 	//fmt.Println(headers)
-	msg, err := mail.ReadMessage(strings.NewReader(headers))
+	//msg, err := mail.ReadMessage(strings.NewReader(headers))
+	msg, err := mail.ReadMessage(gz)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -204,10 +204,10 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 		// and no quote-printable string ('=?') was found in encodedSubject
 		decodedSubject = convertRawToUTF8(encodedSubject)
 	}
-
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
+	email.Subject_e = decodedSubject
+	//if err := scanner.Err(); err != nil {
+	//	log.Fatal(err)
+	//}
 	modifiedSubject := fmt.Sprintf("%s: %s : %d", "" /*filename*/, decodedSubject, goroutineNum)
 	resultCh <- modifiedSubject
 }
