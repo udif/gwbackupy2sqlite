@@ -52,5 +52,5 @@ type Emails struct {
 	Snippet      string `json:"snippet"`
 	HistoryId    IntStr `json:"historyId"`
 	SizeEstimate IntStr `json:"sizeEstimate"`
-	Date_e       int
+	Date_e       int64
 }

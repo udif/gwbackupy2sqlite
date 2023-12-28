@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	//_ "github.com/mattn/go-sqlite3"
 	_ "github.com/glebarez/go-sqlite"
@@ -101,6 +102,68 @@ func convertRawToUTF8(s string) string {
 	return s
 }
 
+var dateLayout1 = []string{
+	"Mon, 2 Jan 2006 15:4:5 -0700",
+	"_2 Jan 2006 15:4:5 -0700",
+	"Mon, 2 Jan 06 15:4:5 -0700",
+	"Mon, 2 Jan 2006 15:4:5",
+	"Mon, 2 Jan 2006 15:4:5 MST-0700",
+	"Mon, 2 Jan 2006 15:4:5 MST:00",
+	"existent_DATE_TIME",
+	""}
+var dateLayout2 = []string{
+	"Mon, 2 Jan 2006 15:4:5 -0700 (MST)",
+	"Mon, 2 Jan 2006 15:4:5 -0700 MST",
+	"Mon, 2 Jan 2006 15:4:5 MST",
+	"Mon, 2-Jan-2006 15:4:5 MST",
+	"Mon, 2 Jan 2006 15:4:5 \"MST\"",
+	"_2 Jan 2006 15:4:5 MST",
+	", Mon,, 2-Jan-2006, 15:4:5, MST",
+	"Mon, 2 Jan 06 15:4:5 MST"}
+
+func parseDateMultiple(dateStr string, layouts []string) (time.Time, []error) {
+	var errors []error
+	var err error
+	var t time.Time
+	for _, format := range layouts {
+		t, err = time.Parse(format, dateStr)
+		if err == nil {
+			return t, nil
+		}
+		errors = append(errors, err)
+	}
+	return t, errors
+}
+
+func printErrors(errors []error) {
+	for _, err := range errors {
+		log.Println(err.Error())
+	}
+}
+
+func parseDateFlexible(dateStr string) time.Time {
+	var errors1, errors2, errors3 []error
+	var t time.Time
+	t, errors1 = parseDateMultiple(dateStr, dateLayout1)
+	if len(errors1) == 0 {
+		return t
+	}
+	t, errors2 = parseDateMultiple(dateStr, dateLayout2)
+	if len(errors2) == 0 {
+		return t
+	}
+	dateStr = strings.Replace(dateStr, "UT", "UTC", 1)
+	t, errors3 = parseDateMultiple(dateStr, dateLayout2)
+	if len(errors3) == 0 {
+		return t
+	}
+	printErrors(errors1)
+	printErrors(errors2)
+	printErrors(errors3)
+	os.Exit(1)
+	return t
+}
+
 func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	var gzName, jsonName string
 	dir, file := filepath.Split(filename)
@@ -108,7 +171,7 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(id)
+	//fmt.Println(id)
 	ext := filepath.Ext(filename)
 	fileMu.Lock() // release lock ASAP
 	val, ok := fileMap[id]
@@ -147,9 +210,9 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	// both filename has the same id
 	// both filenames resides in the same directory
 	// we reall have json and gz suffixes
-	dir3, day := filepath.Split(filepath.Clean(dir))
-	_, year := filepath.Split(filepath.Clean(dir3))
-	fmt.Println("gzip: year:", year, "day:", day, "id:", id)
+	//dir3, day := filepath.Split(filepath.Clean(dir))
+	//_, year := filepath.Split(filepath.Clean(dir3))
+	//fmt.Println("gzip: year:", year, "day:", day, "id:", id)
 
 	var dec = new(mime.WordDecoder)
 	dec.CharsetReader = CharsetReader
@@ -163,7 +226,6 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	}
 	var email Emails
 	json.Unmarshal([]byte(byteValue), &email)
-	fmt.Println(email)
 	// ********************
 	// End of JSON handling
 	// ********************
@@ -181,17 +243,6 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 	}
 	defer gz.Close()
 
-	//scanner := bufio.NewScanner(gz)
-	//var headers string
-	//for scanner.Scan() {
-	//	line := scanner.Text()
-	//	if line == "" {
-	//		break
-	//	}
-	//	headers += line + "\r\n"
-	//}
-	//fmt.Println(headers)
-	//msg, err := mail.ReadMessage(strings.NewReader(headers))
 	msg, err := mail.ReadMessage(gz)
 	if err != nil {
 		log.Fatal(err)
@@ -205,9 +256,16 @@ func handleMail(goroutineNum int, filename string, resultCh chan<- string) {
 		decodedSubject = convertRawToUTF8(encodedSubject)
 	}
 	email.Subject_e = decodedSubject
-	//if err := scanner.Err(); err != nil {
-	//	log.Fatal(err)
+	//fmt.Println(msg.Header.Get("Date"))
+	t := parseDateFlexible(msg.Header.Get("Date")) // used to be time.RFC1123Z
+	//t, err := datetime.Parse(msg.Header.Get("Date"), time.Local)
+	//if err != nil {
+	//	fmt.Println("Error:", err)
+	//	return
 	//}
+	email.Date_e = t.Unix()
+	//fmt.Println(email)
+
 	modifiedSubject := fmt.Sprintf("%s: %s : %d", "" /*filename*/, decodedSubject, goroutineNum)
 	resultCh <- modifiedSubject
 }
@@ -224,7 +282,8 @@ func sqlite_update(resultCh <-chan string) {
 	defer wg2.Done()
 
 	for result := range resultCh {
-		fmt.Println(result)
+		_ = result
+		//fmt.Println(result)
 	}
 }
 
